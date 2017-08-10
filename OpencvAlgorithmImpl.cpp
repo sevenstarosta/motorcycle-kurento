@@ -60,9 +60,9 @@ void OpencvAlgorithmImpl::setMaxBufferSize (int size)
 }
 
 
-void OpencvAlgorithmImpl::setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3){
+void OpencvAlgorithmImpl::setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3,int start){
     //Set the OpenCV rect points to detect motorcycles
-    OpencvAlgorithmOpenCVImpl::setPoints(x0,x1,x2,x3,y0,y1,y2,y3);
+    OpencvAlgorithmOpenCVImpl::setPoints(x0,x1,x2,x3,y0,y1,y2,y3,start);
 }
 
 

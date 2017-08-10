@@ -47,7 +47,7 @@ public:
     void setMaxBufferSize(int size);
     void dealoc();
     void setMaxTimeToRec(int time);
-    void setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3);
+    void setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3, int start);
     
     //------------------------------PUBLIC VARIABLES---------------------------
     
@@ -64,7 +64,7 @@ private:
   //Variables to controll the buffer
   int MAX_BUFF_SIZE;
   bool recording;
-  bool start;
+  int start;
   std::queue<cv::Mat*> imgBuffer;
   int transientFrame;
     
@@ -75,15 +75,19 @@ private:
   time_t _time;
   //double duration;
   double length_kmeters;
+  double average_moto_velocity;
+  double average_car_velocity;
   std::vector<double> initial_pos, final_pos, moto_velocities, car_velocities, initial_x;
   std::vector<bool> passedVehicles, previousVehicles, vehicleType;
   std::vector<vehicle> vehicles;
   cv::Mat average, frame, dst, fgMask, transform_matrix, inverse_matrix;
   std::vector <cv::Rect> objects;
+  std::vector <cv::Point2f> prohibitedAreas;
+  
   unsigned char *image_values;
   //may need to be put in process
   cv::TermCriteria criteria;
-  
+  int setPointsCounter;
   
     
   //------------------------------PRIVATE METHODS---------------------------

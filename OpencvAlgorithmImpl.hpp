@@ -54,7 +54,7 @@ public:
   
   void dealoc();
   
-  void setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3);
+  void setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3, int start);
   
   void setOpencvAlgorithmType(int type);
 

@@ -28,10 +28,11 @@ namespace kurento
 	this->TIME_TO_REC = 4;
 	this->frameCounter = 0;
 	this->recording = false;
-	this->start = false;
+	this->start = 0;
 	this->transientFrame = 0; 
 	this->eventEnable = false;
 	this->timeToRec = 0;
+	this->setPointsCounter = 0;
 	
 	this->motoCount = 0;
 	this->zigzagcount = 0;
@@ -44,15 +45,17 @@ namespace kurento
 	this->MIN_THRESH = 27;
 	this->INIT_IMAGES = 200;
 	this->length_kmeters = 15;
+    this->average_moto_velocity = 0;
+    this->average_car_velocity = 0;
 
 	this->filter_type = 0;
     
 	this->X_SIZE = 400;
 	this->Y_SIZE = 400;
-	this->MAX_WIDTH = X_SIZE / 6;
+	this->MAX_WIDTH = X_SIZE / 7;
 	this->MAX_HEIGHT = Y_SIZE / 3;
-	this->MIN_HEIGHT = Y_SIZE / 8;
-	this->MIN_WIDTH = X_SIZE / 14;
+	this->MIN_HEIGHT = Y_SIZE / 11;
+	this->MIN_WIDTH = X_SIZE / 16;
 
 	this->transform_matrix = (cv::Mat_<float>(3,3) << .8, .78, -636, -.256, .994, -243, -.00019, -.00816, 1);
 	
@@ -78,10 +81,10 @@ namespace kurento
       //-----------------------------FUNCTIONS OF GLOBAL EVENTS--------------------------------
 
 
-      void OpencvAlgorithmOpenCVImpl::callEvent(std::string type,std::string value){
-	this->event->setCodeType(type);
-	this->event->setValue(value);
-	this->signalCodeFound(*event);
+    void OpencvAlgorithmOpenCVImpl::callEvent(std::string type,std::string value){
+	   this->event->setCodeType(type);
+	   this->event->setValue(value);
+	   this->signalCodeFound(*event);
       }
 
       bool OpencvAlgorithmOpenCVImpl::startRecord()
@@ -120,69 +123,71 @@ namespace kurento
 	   this->TIME_TO_REC = time;
       }
 
-    void OpencvAlgorithmOpenCVImpl::setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3)
+    void OpencvAlgorithmOpenCVImpl::setPoints(int x0, int x1,int x2,int x3,int y0,int y1,int y2,int y3, int start)
       {
          //Prevent second homography from being used
-         if(!start)
+         if(!this->start)
          {
-            cv::Point2f source_points[] = {cv::Point2f(x0-70,y0),cv::Point2f(x1-70,y1),cv::Point2f(x2-70,y2),cv::Point2f(x3-70,y3)};   
-            cv::Point2f dst_points[] = {cv::Point2f(0,0), cv::Point2f(X_SIZE,0),cv::Point2f(X_SIZE,Y_SIZE),cv::Point2f(0,Y_SIZE)};
-            transform_matrix = cv::getPerspectiveTransform(source_points,dst_points);
-            //use inverse matrix to get image back to original
-            inverse_matrix = cv::getPerspectiveTransform(dst_points,source_points);
-            start = true;
+            callLog(std::to_string(this->start));
+            
+         
+            this->start = start;
+            
+            if(this->setPointsCounter == 0)
+            {  
+                cv::Point2f source_points[] = {cv::Point2f(x0,y0),cv::Point2f(x1,y1),cv::Point2f(x2,y2),cv::Point2f(x3,y3)};   
+                cv::Point2f dst_points[] = {cv::Point2f(0,0), cv::Point2f(X_SIZE,0),cv::Point2f(X_SIZE,Y_SIZE),cv::Point2f(0,Y_SIZE)};
+                transform_matrix = cv::getPerspectiveTransform(source_points,dst_points);
+                //use inverse matrix to get image back to original
+                inverse_matrix = cv::getPerspectiveTransform(dst_points,source_points);
+            }
+            else
+            {
+                prohibitedAreas.push_back(cv::Point2f(x0,y0));
+                prohibitedAreas.push_back(cv::Point2f(x1,y1));
+                prohibitedAreas.push_back(cv::Point2f(x2,y2));
+                prohibitedAreas.push_back(cv::Point2f(x3,y3));
+            }
+            
+            
+            setPointsCounter++;
+            
         }
       }
 
       //---------------------------LOCAL OPENCV FUNCTIONS------------------------------------------
 
-
-      /*cv::Rect resize_rect(cv::Rect rect, float sf){
-	int h = rect.height/sf;
-	int w = rect.width/sf;
-	int x = rect.x/sf;
-	int y = rect.y/sf;
-        
-	return cv::Rect(x,y,w,h);
-	}
-
-	void crop_img(cv::Mat &src, cv::Mat& dst, cv::Rect rect){
-	dst = src(rect);
-	}
-
-	void and_operation(cv::Mat &src1, cv::Mat &src2, cv::Mat &out){
+	void and_operation(cv::Mat &src1, cv::Mat &src2, cv::Mat &out)
+	{
     
-	int w,h;
+	   int w,h;
 
-	if(src1.rows > src2.rows){
-        h = src2.rows-1;
-	}
-	else
-        h = src1.rows-1;
+	   if(src1.rows > src2.rows){
+         h = src2.rows-1;
+	   }
+	   else
+         h = src1.rows-1;
 
-	if(src1.cols > src2.cols){
+	   if(src1.cols > src2.cols){
         w = src2.cols-1;
-	}
-	else
+	   }
+	   else
         w = src1.cols-1;
 
-	cv::Mat aux(h,w,CV_8UC1);
+	   cv::Mat aux(h,w,CV_8UC1);
 
-	for(int i=0;i<h;i++){
-        for(int j=0;j<w;j++){
-	if(src1.at<uchar>(i,j)*src2.at<uchar>(i,j) > 0)
-	aux.at<uchar>(i,j) = 255;
-	else
-	aux.at<uchar>(i,j) = 0;    
+	   for(int i=0;i<h;i++){
+         for(int j=0;j<w;j++){
+	   if(src1.at<uchar>(i,j)*src2.at<uchar>(i,j) > 0)
+	   aux.at<uchar>(i,j) = 255;
+	   else
+	   aux.at<uchar>(i,j) = 0;    
         }
-	}
+	   }
     
-	aux.copyTo(out);
+	   aux.copyTo(out);
 
 	}
-
-	*/
-
 
       //-------------------------MAIN OPENCV ALGORITHMS------------------------------------------
 
@@ -259,7 +264,10 @@ namespace kurento
 
     void OpencvAlgorithmOpenCVImpl::process (cv::Mat &mat)
       {
-        if(start)
+        
+      
+      
+        if(this->start)
         {
 	       //perform perspective transform on mat
 	       //dst holds color version. must rescale to original.
@@ -316,10 +324,6 @@ namespace kurento
 	           Dilation(fgMask,4);
 	           cv::threshold(fgMask,fgMask,MIN_THRESH,255,3);
 	           //preprocessing complete ----------------------------------------------------------------------
-	  
-	           //counting vehicles that have passed the half way point
-	           //this->previousVehicles = this->passedVehicles;
-	           //this->passedVehicles.clear();
 	           
 	           if (frameCounter % DETECT_RATE == DETECT_RATE / 2)
                 {
@@ -337,13 +341,7 @@ namespace kurento
 	  
 		          //count passed motorcycles
 		          if((this->objects.at(j).y >= (2*frame.rows/3) ) && this->vehicles.at(j).type)
-		          {
-		              //this->passedVehicles.push_back(true);
-	      
-		              // filled with dummy values to prevent out of bounds error
-		              //for (unsigned int k = this->previousVehicles.size(); k<= j; k++)
-		              //  this->previousVehicles.push_back(true);
-		              
+		          {   
 		              //do all counting here
 		              //if( !this->previousVehicles.at(j) )
 		              if (!this->vehicles.at(j).over_line)
@@ -364,10 +362,6 @@ namespace kurento
 		                  carcount++;
 		              }
 		          }
-		          //else if (this->vehicles.at(j).type)
-		          //{
-		          //    this->passedVehicles.push_back(false);
-		          //}
 
 		          if (frameCounter % DETECT_RATE == 0 && (this->objects.at(j).y + this->objects.at(j).height < frame.rows - 4))
 		          {
@@ -400,75 +394,49 @@ namespace kurento
 		          }	  
 	           }
 	           if (frameCounter % DETECT_RATE ==0)
-	           {	
-	               this->vehicles.clear();      
-		          //this->previousVehicles.clear();
-		          //this->initial_pos.clear();
-		          //this->initial_x.clear();
-		          //this->vehicleType.clear();
-		          this->objects.clear();
-	      
-		          Contours(fgMask);
-
-		          //put in locations of previous vehicles for counting
-		          /*for (unsigned int j =0; j < this->objects.size(); j++)
-		          {
-		              //count passed motorcycles
-		              if((this->objects.at(j).y >= (2*frame.rows/3) ) && this->vehicleType.at(j))
-		              {
-			             //this->previousVehicles.push_back(true);
-		              }
-		              else if (this->vehicleType.at(j))
-		              {
-			             //this->previousVehicles.push_back(false);
-		              }
-		          }*/
+	           {
+                    this->vehicles.clear();      
+                    this->objects.clear();
+                    Contours(fgMask);
+                    //print out average velocity
+                    if(frameCounter % (DETECT_RATE * 3) == 0)
+                    { 
+                        average_moto_velocity = 0;
+                        average_car_velocity = 0;
+                        for(unsigned int i = 0; i < this->moto_velocities.size(); i++)
+                        {
+                            average_moto_velocity += this->moto_velocities.at(i);
+                        }
+                        average_moto_velocity /= (double) this->moto_velocities.size();
+      
+                        for(unsigned int i = 0; i< this->car_velocities.size(); i++)
+                        {
+                            average_car_velocity += this->car_velocities.at(i);
+                        }
+                        average_car_velocity /= (double) this->car_velocities.size();
+                        this->moto_velocities.clear();
+                        this->car_velocities.clear();
+                    }
 	           }
-	           //cv::resize(dst,dst,mat.size());
 	       }  
-            /*if(frameCounter > TRANSIENT_FRAME){
-	           time_t now;
-	           time(&now);
-    
-	           double diff =  difftime(now,_time);
-	           this->frameRate = (float)(frameCounter/diff);
-    
-	           time(&_time);
-	           frameCounter = 0;
-	       }
-  
-	       if(transientFrame > TRANSIENT_FRAME)
-	       {
-	           //Allocate a new image   
-	           cv::Mat auxMat;// = new cv::Mat();
-	           auxMat = mat.clone();
-	       }
-	       */
-  
-	       /*if(moving > frameRate)
-	       {
-	           timeToRec++;  
-	           if(!recording)
-	           {
-		      startRecord();
-	           }
-	           else if(recording && timeToRec/frameRate > TIME_TO_REC)
-	           {
-		          timeToRec = 0;
-		          stopRecord();
-	           }
-	       }
-  
-	       else if(recording)
-	       {
-	           stopRecord();
-	       }*/
-	       
             cv::warpPerspective(dst,mat,inverse_matrix,cv::Size(mat.cols,mat.rows));
-            cv::putText(mat,"Motorcycle count: " + std::to_string(motoCount),cv::Point(5,50),0,1,cv::Scalar(255,0,0),2); 
-            cv::putText(mat,"Car count: " + std::to_string(carcount),cv::Point(5,110),0,1,cv::Scalar(255,0,0),2); 
+            cv::putText(mat,"Motos: " + std::to_string(motoCount),cv::Point(1,30),0,1,cv::Scalar(255,0,0),2); 
+            cv::putText(mat,"Carros: " + std::to_string(carcount),cv::Point(1,60),0,1,cv::Scalar(255,0,0),2);
+	       cv::putText(mat,"Zigzag: " + std::to_string(zigzagcount),cv::Point(180,30),0,1,cv::Scalar(255,0,0),2); 
+	       
+	       //cv::putText(mat,"Moto veloc.: " + std::to_string(average_moto_velocity),cv::Point(180,60),0,1,cv::Scalar(255,0,0),2); 
+	       //cv::putText(mat,"Carro veloc.: " + std::to_string(average_car_velocity),cv::Point(1,90),0,1,cv::Scalar(255,0,0),2); 
             //cv::resize(dst,mat,mat.size());
 	       //mat = dst.clone();
+	       
+	       if(this->prohibitedAreas.size() > 0){
+    	       unsigned int i;
+    	       for(i=0;i<3;i++){
+    	           cv::line(mat,this->prohibitedAreas[i],this->prohibitedAreas[i+1],cv::Scalar(255,0,0),1,8,0);
+    	       }
+	       }
+	       
+	       
 	       transientFrame++; 
 	       frameCounter++;
 	   }
@@ -476,11 +444,8 @@ namespace kurento
 	   {
 	       frameCounter = 0;
 	   }
+	   
 	 } 
-  
-      //transientFrame++;
-      //frameCounter++;
-        //}  
 
   } /* opencvalgorithm */
 } /* module */
